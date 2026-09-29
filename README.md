@@ -22,17 +22,17 @@ All identities are removed: leagues, countries, seasons, dates and club names ar
 Derived deterministically (seed 20260929, ~1 s, Python standard library) from the CC0 openfootball `football.json` snapshot at commit `e6744429ee395bc86f247348c6184bb08d4eb361`, keeping only complete, balanced regular-stage seasons (190 found, 1 byte-identical upstream duplicate removed). Source data are facts (match results) dedicated to the public domain; no source names, dates or identifiers survive in this dataset.
 
 ## File Structure
-All 12 files are flat CSVs with a header row and **no missing values in any column**; the files are joined on `fixture_id` (and `case_id`).
-- `train_cases.csv` — 132 rows, one per training case, with its reveal `regime` label
+All 12 files are flat CSVs with a header row, **no missing values in any column** and no heavy-tailed numeric columns (flags are categorical `yes`/`no`; per-case counts are derivable rather than stored); the files are joined on `fixture_id` (and `case_id`).
+- `train_cases.csv` — 132 rows, one per training case: `halftime` flag and reveal `regime` label
 - `train_tallies.csv` — 2,478 rows, full-season tallies of every team in every training case
 - `train_fixtures.csv` — 47,338 rows, the complete schedule of every training case with a `hidden` flag marking which fixtures the regime would hide
 - `train_results.csv` — 47,338 rows, the full-time score of **every** training fixture
 - `train_halftime.csv` — 43,891 rows, the half-time score of every training fixture for which the source recorded one
-- `test_cases.csv` — 57 rows, one per test case (no regime label)
+- `test_cases.csv` — 57 rows, one per test case: `halftime` flag only
 - `test_tallies.csv` — 1,039 rows, full-season tallies of every team in every test case
 - `test_fixtures.csv` — 19,646 rows, the complete schedule of every test case; `hidden = 1` on the 9,438 withheld fixtures
 - `test_results.csv` — 10,208 rows, the full-time score of the **visible** test fixtures only
-- `test_halftime.csv` — 5,035 rows, half-time scores for fixtures (hidden ones included) of the test cases whose regime exposes half-time
+- `test_halftime.csv` — 5,035 rows, half-time scores for fixtures (hidden ones included) of the test cases with `halftime = yes`
 - `sample_submission.csv` — 9,438 rows, one per hidden test fixture, in the required output format
 - `answers.csv` — 9,438 rows, the private answer key for the hidden test fixtures (must not be exposed to solvers)
 
@@ -42,19 +42,17 @@ All 12 files are flat CSVs with a header row and **no missing values in any colu
 | Column | Type | Description |
 |--------|------|-------------|
 | `case_id` | string | `C001`…`C189`; unique season identifier, order-free |
-| `n_teams` | int | 10, 12, 16, 18, 20 or 24 |
-| `n_rounds` | int | 22–46 |
-| `n_fixtures` | int | 132–552; equals rounds × teams / 2 |
-| `n_hidden` | int | number of fixtures with `hidden = 1` |
-| `ht_provided` | int {0,1} | 1 if half-time scores are exposed for this case in the test condition |
+| `halftime` | string {`yes`,`no`} | whether half-time scores are exposed for this case in the test condition |
 | `regime` | string (train only) | one of `scatter40`, `scatter60`, `tail40`, `cluster20`, `halftime60` — the mechanism used to choose hidden fixtures |
+
+Team count (10, 12, 16, 18, 20 or 24), round count (22–46), fixture count (132–552) and hidden count per case are derivable from the tallies and fixtures tables and are not repeated here.
 
 ### `train_tallies.csv` / `test_tallies.csv`
 | Column | Type | Description |
 |--------|------|-------------|
 | `case_id` | string | case reference |
 | `team` | string | `T01`…`Tnn`, per-case anonymised label |
-| `played` | int | fixtures played (= 2·(n_teams−1) or 4·(n_teams−1)) |
+| `played` | int | fixtures played (= 2·(teams−1) or 4·(teams−1)) |
 | `wins`, `draws`, `losses` | int | full-season counts over all fixtures, hidden included |
 | `goals_for`, `goals_against` | int | full-season goal totals over all fixtures, hidden included |
 
@@ -91,8 +89,8 @@ All 12 files are flat CSVs with a header row and **no missing values in any colu
 |--------|------|-------------|
 | `fixture_id`, `case_id` | string | references |
 | `regime` | string | one of the seven regimes incl. test-only `cluster30`, `tailhalf40` |
-| `hard` | int {0,1} | 1 for the two test-only composition regimes |
-| `unseen_league` | int {0,1} | 1 if the case's league family has no training case |
+| `hard` | string {`yes`,`no`} | `yes` for the two test-only composition regimes |
+| `unseen_league` | string {`yes`,`no`} | `yes` if the case's league family has no training case |
 | `home`, `away` | string | team labels |
 | `ft_home`, `ft_away` | int | true full-time goals |
 

@@ -385,13 +385,15 @@ def main():
                            "" if is_hidden else hg, "" if is_hidden else ag]
                     if is_hidden:
                         answers.append([fid, c["case_id"], c["regime"],
-                                        1 if c["regime"] in HARD_REGIMES else 0,
-                                        1 if c["family"] not in train_families else 0,
+                                        "yes" if c["regime"] in HARD_REGIMES else "no",
+                                        "yes" if c["family"] not in train_families else "no",
                                         label[h], label[a], hg, ag])
                 pub_fix[split].append(row)
                 key = "hidden" if is_hidden else "visible"
                 audit[split + "_homewin_" + key][("H" if hg > ag else "D" if hg == ag else "A")] += 1
-            case_row = [c["case_id"], T, max(rounds), n, len(hidden), 1 if (show_ht and ht_available > 0) else 0]
+            # counts (teams, rounds, fixtures, hidden) are derivable from the other tables and are
+            # deliberately not repeated here; flags are categorical strings, not 0/1 integers
+            case_row = [c["case_id"], "yes" if (show_ht and ht_available > 0) else "no"]
             if split == "train":
                 case_row.append(c["regime"])
             pub_cases[split].append(case_row)
@@ -424,9 +426,9 @@ def main():
     tables = {sp: split_tables(pub_fix[sp]) for sp in ("train", "test")}
     tal_header = ["case_id", "team", "played", "wins", "draws", "losses", "goals_for", "goals_against"]
     w(os.path.join(P, "train_cases.csv"),
-      ["case_id", "n_teams", "n_rounds", "n_fixtures", "n_hidden", "ht_provided", "regime"], pub_cases["train"])
+      ["case_id", "halftime", "regime"], pub_cases["train"])
     w(os.path.join(P, "test_cases.csv"),
-      ["case_id", "n_teams", "n_rounds", "n_fixtures", "n_hidden", "ht_provided"], pub_cases["test"])
+      ["case_id", "halftime"], pub_cases["test"])
     w(os.path.join(P, "train_tallies.csv"), tal_header, pub_tallies["train"])
     w(os.path.join(P, "test_tallies.csv"), tal_header, pub_tallies["test"])
     for sp in ("train", "test"):
