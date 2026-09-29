@@ -22,7 +22,7 @@ All identities are removed: leagues, countries, seasons, dates and club names ar
 Derived deterministically (seed 20260929, ~1 s, Python standard library) from the CC0 openfootball `football.json` snapshot at commit `e6744429ee395bc86f247348c6184bb08d4eb361`, keeping only complete, balanced regular-stage seasons (190 found, 1 byte-identical upstream duplicate removed). Source data are facts (match results) dedicated to the public domain; no source names, dates or identifiers survive in this dataset.
 
 ## File Structure
-All 12 files are flat CSVs with a header row, **no missing values in any column** and no heavy-tailed numeric columns (flags are categorical `yes`/`no`; per-case counts are derivable rather than stored); the files are joined on `fixture_id` (and `case_id`).
+All 12 files are flat CSVs with a header row, **no missing values in any column** and no heavy-tailed numeric columns (flags are categorical `yes`/`no`; per-case counts are derivable rather than stored); the files are joined on `id` (and `case_id`).
 - `train_cases.csv` — 132 rows, one per training case: `halftime` flag and reveal `regime` label
 - `train_tallies.csv` — 2,478 rows, full-season tallies of every team in every training case
 - `train_fixtures.csv` — 47,338 rows, the complete schedule of every training case with a `hidden` flag marking which fixtures the regime would hide
@@ -60,7 +60,7 @@ Team count (10, 12, 16, 18, 20 or 24), round count (22–46), fixture count (132
 | Column | Type | Description |
 |--------|------|-------------|
 | `case_id` | string | case reference |
-| `fixture_id` | string | `Cnnn_Fnnn`, unique, assigned after a seeded shuffle (carries no information) |
+| `id` | string | fixture identifier `Cnnn_Fnnn`, unique across the dataset, assigned after a seeded shuffle (carries no information) |
 | `round` | int | 1…R, chronological |
 | `home`, `away` | string | team labels |
 | `hidden` | int {0,1} | 1 = full-time result withheld in the test condition |
@@ -68,31 +68,32 @@ Team count (10, 12, 16, 18, 20 or 24), round count (22–46), fixture count (132
 ### `train_results.csv` / `test_results.csv`
 | Column | Type | Description |
 |--------|------|-------------|
-| `case_id`, `fixture_id` | string | references |
+| `case_id`, `id` | string | references |
 | `ft_home`, `ft_away` | int | full-time goals, home then away (0–13 observed); train: all fixtures; test: visible fixtures only |
 
 ### `train_halftime.csv` / `test_halftime.csv`
 | Column | Type | Description |
 |--------|------|-------------|
-| `case_id`, `fixture_id` | string | references |
+| `case_id`, `id` | string | references |
 | `ht_home`, `ht_away` | int | half-time goals, home then away; present only where the source recorded them and (test) where the case's regime exposes half-time |
 
 ### `sample_submission.csv`
 | Column | Type | Description |
 |--------|------|-------------|
-| `fixture_id` | string | one row per hidden test fixture |
-| `home_goals`, `away_goals` | int 0–30 | predicted full-time score (sample: 1–0) |
+| `id` | string | one row per hidden test fixture |
+| `prediction` | string | predicted full-time score as `H-A`, e.g. `2-1` (sample: `1-0`) |
 | `certain` | int {0,1} | 1 = commit to the predicted outcome (sample: 0) |
 
 ### `answers.csv` (private)
 | Column | Type | Description |
 |--------|------|-------------|
-| `fixture_id`, `case_id` | string | references |
+| `id` | string | hidden test fixture identifier |
+| `target` | string | true full-time score as `H-A`, e.g. `2-1` |
+| `case_id` | string | case reference |
 | `regime` | string | one of the seven regimes incl. test-only `cluster30`, `tailhalf40` |
 | `hard` | string {`yes`,`no`} | `yes` for the two test-only composition regimes |
 | `unseen_league` | string {`yes`,`no`} | `yes` if the case's league family has no training case |
 | `home`, `away` | string | team labels |
-| `ft_home`, `ft_away` | int | true full-time goals |
 
 ## Characteristics
 - Every case is a complete balanced schedule: each ordered (home, away) pair occurs the same number of times (once in most cases; twice in a few 10-team seasons).

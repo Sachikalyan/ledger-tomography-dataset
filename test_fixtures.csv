@@ -1,4 +1,4 @@
-case_id,fixture_id,round,home,away,hidden
+case_id,id,round,home,away,hidden
 C005,C005_F001,24,T16,T07,1
 C005,C005_F002,21,T04,T03,1
 C005,C005_F003,4,T06,T04,0

@@ -1,4 +1,4 @@
-case_id,fixture_id,ft_home,ft_away
+case_id,id,ft_home,ft_away
 C005,C005_F003,2,0
 C005,C005_F006,0,3
 C005,C005_F007,1,0

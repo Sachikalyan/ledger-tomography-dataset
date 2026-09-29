@@ -261,7 +261,7 @@ def split_prepared(raw, out):
                 f.write(b)
 
     # integrity: answer ids == hidden test fixture ids == sample submission ids; no answers in public
-    def ids(path, col="fixture_id", where=None):
+    def ids(path, col="id", where=None):
         with open(path, newline="") as f:
             return {r[col] for r in csv.DictReader(f) if where is None or where(r)}
     hidden = ids(os.path.join(pub, "test_fixtures.csv"), where=lambda r: r["hidden"] == "1")
@@ -384,10 +384,10 @@ def main():
                            ht_h if show else "", ht_a if show else "",
                            "" if is_hidden else hg, "" if is_hidden else ag]
                     if is_hidden:
-                        answers.append([fid, c["case_id"], c["regime"],
+                        answers.append([fid, "%d-%d" % (hg, ag), c["case_id"], c["regime"],
                                         "yes" if c["regime"] in HARD_REGIMES else "no",
                                         "yes" if c["family"] not in train_families else "no",
-                                        label[h], label[a], hg, ag])
+                                        label[h], label[a]])
                 pub_fix[split].append(row)
                 key = "hidden" if is_hidden else "visible"
                 audit[split + "_homewin_" + key][("H" if hg > ag else "D" if hg == ag else "A")] += 1
@@ -410,9 +410,9 @@ def main():
             cw.writerows(rows)
     P = os.path.join(args.out, "public")
     Q = os.path.join(args.out, "private")
-    fix_header = ["case_id", "fixture_id", "round", "home", "away", "hidden"]
-    res_header = ["case_id", "fixture_id", "ft_home", "ft_away"]
-    ht_header = ["case_id", "fixture_id", "ht_home", "ht_away"]
+    fix_header = ["case_id", "id", "round", "home", "away", "hidden"]
+    res_header = ["case_id", "id", "ft_home", "ft_away"]
+    ht_header = ["case_id", "id", "ht_home", "ht_away"]
     # wide rows -> three blank-free tables (every value in every file is populated)
     def split_tables(rows):
         fx, rs, ht = [], [], []
@@ -436,11 +436,11 @@ def main():
         w(os.path.join(P, "%s_fixtures.csv" % sp), fix_header, fx)
         w(os.path.join(P, "%s_results.csv" % sp), res_header, rs)
         w(os.path.join(P, "%s_halftime.csv" % sp), ht_header, ht)
-    sample = [[a[0], 1, 0, 0] for a in answers]
-    w(os.path.join(P, "sample_submission.csv"), ["fixture_id", "home_goals", "away_goals", "certain"], sample)
+    sample = [[a[0], "1-0", 0] for a in answers]
+    w(os.path.join(P, "sample_submission.csv"), ["id", "prediction", "certain"], sample)
     # --- write private -----------------------------------------------------
     w(os.path.join(Q, "answers.csv"),
-      ["fixture_id", "case_id", "regime", "hard", "unseen_league", "home", "away", "ft_home", "ft_away"], answers)
+      ["id", "target", "case_id", "regime", "hard", "unseen_league", "home", "away"], answers)
     w(os.path.join(Q, "case_manifest.csv"),
       ["case_id", "split", "season", "league_file", "family", "regime", "n_teams", "n_fixtures", "n_hidden", "ht_available"],
       manifest)

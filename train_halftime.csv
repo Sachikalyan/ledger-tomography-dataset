@@ -1,4 +1,4 @@
-case_id,fixture_id,ht_home,ht_away
+case_id,id,ht_home,ht_away
 C001,C001_F001,1,0
 C001,C001_F002,0,2
 C001,C001_F003,1,2
