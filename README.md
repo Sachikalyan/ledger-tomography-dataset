@@ -15,7 +15,7 @@ python prepare.py --raw raw/football_json_raw.zip --out data --seed 20260929
 
 
 ## Overview
-An inverse-inference dataset built from complete football league seasons. Each of 189 **cases** is one full season (10–24 teams, 132–552 fixtures) in which every fixture's home/away pairing and round are known, a regime-specific subset of full-time results has been **hidden**, and the **exact end-of-season tallies** of every team (played, wins, draws, losses, goals for, goals against — computed over all fixtures, hidden ones included) are published. The task supported by the dataset is to reconstruct the hidden scorelines jointly, using the tallies as exact constraints, and to say which reconstructions are certain.
+An inverse-inference dataset built from complete football league seasons. Each of 189 **cases** is one full season (10–24 teams, 132–552 fixtures) in which every fixture's home/away pairing and round are known, a regime-specific subset of full-time results has been **hidden**, and the **exact end-of-season tallies** of every team (played, wins, draws, losses, goals for, goals against — computed over all fixtures, hidden ones included) are published, together with the half-time score of every fixture for which the source recorded one (about 92 %, hidden fixtures included). The task supported by the dataset is to reconstruct the hidden full-time scorelines jointly — learning how second halves unfold from the training seasons and using the tallies as exact constraints — and to say which reconstructions are certain. (Version 2, 2026-10-04: half-time scores are exposed in every case; regimes differ only in which fixtures are hidden.)
 
 All identities are removed: leagues, countries, seasons, dates and club names are gone; teams are relabelled `T01…Tnn` by an independent seeded permutation per case; rounds are re-indexed `1…R`; fixture ids are assigned after a seeded shuffle. Seven reveal regimes were applied (five appear in the training split with labels; two harder compositions appear only in the test split, unlabelled). Twelve league families appear only in the test split.
 
@@ -23,18 +23,18 @@ Derived deterministically (seed 20260929, ~1 s, Python standard library) from th
 
 ## File Structure
 All 12 files are flat CSVs with a header row, **no missing values in any column** and no heavy-tailed numeric columns (flags are categorical `yes`/`no`; per-case counts are derivable rather than stored); the files are joined on `id` (and `case_id`).
-- `train_cases.csv` — 132 rows, one per training case: `halftime` flag and reveal `regime` label
+- `train_cases.csv` — 132 rows, one per training case with its reveal `regime` label
 - `train_tallies.csv` — 2,478 rows, full-season tallies of every team in every training case
 - `train_fixtures.csv` — 47,338 rows, the complete schedule of every training case with a `hidden` flag marking which fixtures the regime would hide
 - `train_results.csv` — 47,338 rows, the full-time score of **every** training fixture
 - `train_halftime.csv` — 43,891 rows, the half-time score of every training fixture for which the source recorded one
-- `test_cases.csv` — 57 rows, one per test case: `halftime` flag only
+- `test_cases.csv` — 57 rows, one per test case (`case_id` only)
 - `test_tallies.csv` — 1,039 rows, full-season tallies of every team in every test case
-- `test_fixtures.csv` — 19,646 rows, the complete schedule of every test case; `hidden = 1` on the 9,438 withheld fixtures
-- `test_results.csv` — 10,208 rows, the full-time score of the **visible** test fixtures only
-- `test_halftime.csv` — 5,035 rows, half-time scores for fixtures (hidden ones included) of the test cases with `halftime = yes`
-- `sample_submission.csv` — 9,438 rows, one per hidden test fixture, in the required output format
-- `answers.csv` — 9,438 rows, the private answer key for the hidden test fixtures (must not be exposed to solvers)
+- `test_fixtures.csv` — 19,646 rows, the complete schedule of every test case; `hidden = 1` on the 10,536 withheld fixtures
+- `test_results.csv` — 9,110 rows, the full-time score of the **visible** test fixtures only
+- `test_halftime.csv` — 18,043 rows, half-time scores of every test fixture (hidden ones included) for which the source recorded one
+- `sample_submission.csv` — 10,536 rows, one per hidden test fixture, in the required output format
+- `answers.csv` — 10,536 rows, the private answer key for the hidden test fixtures (must not be exposed to solvers)
 
 ## Features
 
@@ -42,8 +42,7 @@ All 12 files are flat CSVs with a header row, **no missing values in any column*
 | Column | Type | Description |
 |--------|------|-------------|
 | `case_id` | string | `C001`…`C189`; unique season identifier, order-free |
-| `halftime` | string {`yes`,`no`} | whether half-time scores are exposed for this case in the test condition |
-| `regime` | string (train only) | one of `scatter40`, `scatter60`, `tail40`, `cluster20`, `halftime60` — the mechanism used to choose hidden fixtures |
+| `regime` | string (train only) | one of `scatter40`, `scatter60`, `scatter80`, `tail40`, `cluster20` — the mechanism used to choose hidden fixtures |
 
 Team count (10, 12, 16, 18, 20 or 24), round count (22–46), fixture count (132–552) and hidden count per case are derivable from the tallies and fixtures tables and are not repeated here.
 
@@ -75,7 +74,7 @@ Team count (10, 12, 16, 18, 20 or 24), round count (22–46), fixture count (132
 | Column | Type | Description |
 |--------|------|-------------|
 | `case_id`, `id` | string | references |
-| `ht_home`, `ht_away` | int | half-time goals, home then away; present only where the source recorded them and (test) where the case's regime exposes half-time |
+| `ht_home`, `ht_away` | int | half-time goals, home then away; present wherever the source recorded them (both splits, hidden fixtures included) |
 
 ### `sample_submission.csv`
 | Column | Type | Description |
@@ -90,7 +89,7 @@ Team count (10, 12, 16, 18, 20 or 24), round count (22–46), fixture count (132
 | `id` | string | hidden test fixture identifier |
 | `target` | string | true full-time score as `H-A`, e.g. `2-1` |
 | `case_id` | string | case reference |
-| `regime` | string | one of the seven regimes incl. test-only `cluster30`, `tailhalf40` |
+| `regime` | string | one of the seven regimes incl. test-only `cluster30`, `tail60` |
 | `hard` | string {`yes`,`no`} | `yes` for the two test-only composition regimes |
 | `unseen_league` | string {`yes`,`no`} | `yes` if the case's league family has no training case |
 | `home`, `away` | string | team labels |
@@ -98,7 +97,7 @@ Team count (10, 12, 16, 18, 20 or 24), round count (22–46), fixture count (132
 ## Characteristics
 - Every case is a complete balanced schedule: each ordered (home, away) pair occurs the same number of times (once in most cases; twice in a few 10-team seasons).
 - Hidden-fixture outcome shares (home 0.43, draw 0.27, away 0.30) match visible shares in every regime; the most common scorelines are 1-1, 1-0, 2-1, 0-0, 0-1, 2-0 in both splits.
-- Only 14 of the 9,438 hidden fixtures are logically forced by the tallies alone; the rest are constrained but not determined.
-- Test regime counts: scatter40 9, scatter60 8, tail40 8, cluster20 8, halftime60 8, cluster30 8, tailhalf40 8 cases.
+- Only a handful of the 10,536 hidden fixtures are logically forced by the tallies alone; the rest are constrained but not determined.
+- Test regime counts: scatter40 9, scatter60 8, scatter80 8, tail40 8, cluster20 8, cluster30 8, tail60 8 cases.
 - Audits: 0 duplicate tally signatures and 0 duplicate visible-result signatures across cases; fixture-id blocks and team-label magnitude are uninformative about outcomes.
 - No personal data.

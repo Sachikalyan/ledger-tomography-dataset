@@ -59,17 +59,19 @@ TOP_FLIGHT_TEST_SEASONS = {"2024-25", "2025-26"}
 # Fraction of remaining (non-top, non-holdout) family seasons routed to test
 MIXED_TEST_FRACTION = 0.20
 
-TRAIN_REGIMES = ["scatter40", "scatter60", "tail40", "cluster20", "halftime60"]
-HARD_REGIMES = ["cluster30", "tailhalf40"]
+TRAIN_REGIMES = ["scatter40", "scatter60", "tail40", "cluster20", "scatter80"]
+HARD_REGIMES = ["cluster30", "tail60"]
 TEST_REGIMES = TRAIN_REGIMES + HARD_REGIMES
+# v2 (2026-10-04): half-time scores are exposed in every case wherever the source records them;
+# regimes differ only in which full-time results are hidden.
 REGIME_SPEC = {
-    "scatter40":  {"kind": "scatter", "frac": 0.40, "ht": False},
-    "scatter60":  {"kind": "scatter", "frac": 0.60, "ht": False},
-    "tail40":     {"kind": "tail",    "frac": 0.40, "ht": False},
-    "cluster20":  {"kind": "cluster", "frac": 0.20, "ht": False},
-    "halftime60": {"kind": "scatter", "frac": 0.60, "ht": True},
-    "cluster30":  {"kind": "cluster", "frac": 0.30, "ht": False},
-    "tailhalf40": {"kind": "tail",    "frac": 0.40, "ht": True},
+    "scatter40":  {"kind": "scatter", "frac": 0.40, "ht": True},
+    "scatter60":  {"kind": "scatter", "frac": 0.60, "ht": True},
+    "scatter80":  {"kind": "scatter", "frac": 0.80, "ht": True},
+    "tail40":     {"kind": "tail",    "frac": 0.40, "ht": True},
+    "cluster20":  {"kind": "cluster", "frac": 0.20, "ht": True},
+    "cluster30":  {"kind": "cluster", "frac": 0.30, "ht": True},
+    "tail60":     {"kind": "tail",    "frac": 0.60, "ht": True},
 }
 
 
@@ -393,7 +395,7 @@ def main():
                 audit[split + "_homewin_" + key][("H" if hg > ag else "D" if hg == ag else "A")] += 1
             # counts (teams, rounds, fixtures, hidden) are derivable from the other tables and are
             # deliberately not repeated here; flags are categorical strings, not 0/1 integers
-            case_row = [c["case_id"], "yes" if (show_ht and ht_available > 0) else "no"]
+            case_row = [c["case_id"]]
             if split == "train":
                 case_row.append(c["regime"])
             pub_cases[split].append(case_row)
@@ -426,9 +428,9 @@ def main():
     tables = {sp: split_tables(pub_fix[sp]) for sp in ("train", "test")}
     tal_header = ["case_id", "team", "played", "wins", "draws", "losses", "goals_for", "goals_against"]
     w(os.path.join(P, "train_cases.csv"),
-      ["case_id", "halftime", "regime"], pub_cases["train"])
+      ["case_id", "regime"], pub_cases["train"])
     w(os.path.join(P, "test_cases.csv"),
-      ["case_id", "halftime"], pub_cases["test"])
+      ["case_id"], pub_cases["test"])
     w(os.path.join(P, "train_tallies.csv"), tal_header, pub_tallies["train"])
     w(os.path.join(P, "test_tallies.csv"), tal_header, pub_tallies["test"])
     for sp in ("train", "test"):
