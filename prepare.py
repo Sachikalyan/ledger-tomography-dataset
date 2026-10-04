@@ -59,19 +59,21 @@ TOP_FLIGHT_TEST_SEASONS = {"2024-25", "2025-26"}
 # Fraction of remaining (non-top, non-holdout) family seasons routed to test
 MIXED_TEST_FRACTION = 0.20
 
-TRAIN_REGIMES = ["scatter40", "scatter60", "tail40", "cluster20", "scatter80"]
-HARD_REGIMES = ["cluster30", "tail60"]
+TRAIN_REGIMES = ["scatter40", "scatter60", "tail40", "cluster20", "aggregate100", "coarse60"]
+HARD_REGIMES = ["cluster30", "coarse_aggregate100"]
 TEST_REGIMES = TRAIN_REGIMES + HARD_REGIMES
-# v2 (2026-10-04): half-time scores are exposed in every case wherever the source records them;
-# regimes differ only in which full-time results are hidden.
+# v3 (2026-10-05): half-time scores are exposed in every case wherever the source records them.
+# Regimes differ in which full-time results are hidden AND in how much of the table is published:
+# "full" tables give P/W/D/L/GF/GA, "coarse" tables give only played, points and goal difference.
 REGIME_SPEC = {
     "scatter40":  {"kind": "scatter", "frac": 0.40, "ht": True},
     "scatter60":  {"kind": "scatter", "frac": 0.60, "ht": True},
-    "scatter80":  {"kind": "scatter", "frac": 0.80, "ht": True},
+    "aggregate100": {"kind": "scatter", "frac": 1.00, "ht": True},                   # aggregate-only: no visible results at all
+    "coarse60":     {"kind": "scatter", "frac": 0.60, "ht": True, "table": "coarse"}, # privacy axis: table shows points + goal difference only
+    "coarse_aggregate100": {"kind": "scatter", "frac": 1.00, "ht": True, "table": "coarse"},
     "tail40":     {"kind": "tail",    "frac": 0.40, "ht": True},
     "cluster20":  {"kind": "cluster", "frac": 0.20, "ht": True},
     "cluster30":  {"kind": "cluster", "frac": 0.30, "ht": True},
-    "tail60":     {"kind": "tail",    "frac": 0.60, "ht": True},
 }
 
 
@@ -203,8 +205,8 @@ def build_mask(regime, n_fix, rounds, home_idx, away_idx, T, rng):
 # (the derived dataset registered on the platform).  prepare.py then only
 # separates public files from the private answer key and verifies integrity.
 # ----------------------------------------------------------------------------
-PUBLIC_FILES = ["train_cases.csv", "train_tallies.csv", "train_fixtures.csv", "train_results.csv", "train_halftime.csv",
-                "test_cases.csv", "test_tallies.csv", "test_fixtures.csv", "test_results.csv", "test_halftime.csv",
+PUBLIC_FILES = ["train_cases.csv", "train_tallies.csv", "train_tallies_coarse.csv", "train_fixtures.csv", "train_results.csv", "train_halftime.csv",
+                "test_cases.csv", "test_tallies.csv", "test_tallies_coarse.csv", "test_fixtures.csv", "test_results.csv", "test_halftime.csv",
                 "sample_submission.csv"]
 PRIVATE_FILES = ["answers.csv"]
 OPTIONAL_PRIVATE = ["case_manifest.csv", "prepare_report.json"]
@@ -340,6 +342,7 @@ def main():
 
     pub_cases = {"train": [], "test": []}
     pub_tallies = {"train": [], "test": []}
+    pub_coarse = {"train": [], "test": []}
     pub_fix = {"train": [], "test": []}
     answers = []
     manifest = []
@@ -366,8 +369,12 @@ def main():
                 if hg > ag: tal[h][1] += 1; tal[a][3] += 1
                 elif hg == ag: tal[h][2] += 1; tal[a][2] += 1
                 else: tal[h][3] += 1; tal[a][1] += 1
+            table_kind = REGIME_SPEC[c["regime"]].get("table", "full")
             for t in c["teams"]:
-                pub_tallies[split].append([c["case_id"], label[t]] + tal[t])
+                if table_kind == "coarse":
+                    pub_coarse[split].append([c["case_id"], label[t], tal[t][0], 3 * tal[t][1] + tal[t][2], tal[t][4] - tal[t][5]])
+                else:
+                    pub_tallies[split].append([c["case_id"], label[t]] + tal[t])
             # fixture rows, shuffled before ID assignment
             fo = list(range(n))
             rng.shuffle(fo)
@@ -386,16 +393,17 @@ def main():
                            ht_h if show else "", ht_a if show else "",
                            "" if is_hidden else hg, "" if is_hidden else ag]
                     if is_hidden:
-                        answers.append([fid, "%d-%d" % (hg, ag), c["case_id"], c["regime"],
-                                        "yes" if c["regime"] in HARD_REGIMES else "no",
-                                        "yes" if c["family"] not in train_families else "no",
-                                        label[h], label[a]])
+                        answers.append([fid, "%d-%d" % (hg, ag), c["case_id"], label[h], label[a],
+                                        "regime=%s;table=%s;hard=%s;unseen_league=%s" % (
+                                            c["regime"], REGIME_SPEC[c["regime"]].get("table", "full"),
+                                            "yes" if c["regime"] in HARD_REGIMES else "no",
+                                            "yes" if c["family"] not in train_families else "no")])
                 pub_fix[split].append(row)
                 key = "hidden" if is_hidden else "visible"
                 audit[split + "_homewin_" + key][("H" if hg > ag else "D" if hg == ag else "A")] += 1
             # counts (teams, rounds, fixtures, hidden) are derivable from the other tables and are
             # deliberately not repeated here; flags are categorical strings, not 0/1 integers
-            case_row = [c["case_id"]]
+            case_row = [c["case_id"], REGIME_SPEC[c["regime"]].get("table", "full")]
             if split == "train":
                 case_row.append(c["regime"])
             pub_cases[split].append(case_row)
@@ -428,21 +436,24 @@ def main():
     tables = {sp: split_tables(pub_fix[sp]) for sp in ("train", "test")}
     tal_header = ["case_id", "team", "played", "wins", "draws", "losses", "goals_for", "goals_against"]
     w(os.path.join(P, "train_cases.csv"),
-      ["case_id", "regime"], pub_cases["train"])
+      ["case_id", "table", "regime"], pub_cases["train"])
     w(os.path.join(P, "test_cases.csv"),
-      ["case_id"], pub_cases["test"])
+      ["case_id", "table"], pub_cases["test"])
     w(os.path.join(P, "train_tallies.csv"), tal_header, pub_tallies["train"])
     w(os.path.join(P, "test_tallies.csv"), tal_header, pub_tallies["test"])
+    coarse_header = ["case_id", "team", "played", "points", "goal_difference"]
+    w(os.path.join(P, "train_tallies_coarse.csv"), coarse_header, pub_coarse["train"])
+    w(os.path.join(P, "test_tallies_coarse.csv"), coarse_header, pub_coarse["test"])
     for sp in ("train", "test"):
         fx, rs, ht = tables[sp]
         w(os.path.join(P, "%s_fixtures.csv" % sp), fix_header, fx)
         w(os.path.join(P, "%s_results.csv" % sp), res_header, rs)
         w(os.path.join(P, "%s_halftime.csv" % sp), ht_header, ht)
     sample = [[a[0], "1-0", 0] for a in answers]
-    w(os.path.join(P, "sample_submission.csv"), ["id", "prediction", "certain"], sample)
+    w(os.path.join(P, "sample_submission.csv"), ["id", "target", "certain"], sample)
     # --- write private -----------------------------------------------------
     w(os.path.join(Q, "answers.csv"),
-      ["id", "target", "case_id", "regime", "hard", "unseen_league", "home", "away"], answers)
+      ["id", "target", "case_id", "home", "away", "meta"], answers)
     w(os.path.join(Q, "case_manifest.csv"),
       ["case_id", "split", "season", "league_file", "family", "regime", "n_teams", "n_fixtures", "n_hidden", "ht_available"],
       manifest)
