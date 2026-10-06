@@ -59,7 +59,7 @@ TOP_FLIGHT_TEST_SEASONS = {"2024-25", "2025-26"}
 # Fraction of remaining (non-top, non-holdout) family seasons routed to test
 MIXED_TEST_FRACTION = 0.20
 
-TRAIN_REGIMES = ["scatter40", "scatter60", "tail40", "cluster20", "aggregate100", "coarse60"]
+TRAIN_REGIMES = ["scatter40", "scatter60", "tail40", "cluster20", "aggregate100", "coarse60", "noisy60"]
 HARD_REGIMES = ["cluster30", "coarse_aggregate100"]
 TEST_REGIMES = TRAIN_REGIMES + HARD_REGIMES
 # v3 (2026-10-05): half-time scores are exposed in every case wherever the source records them.
@@ -70,6 +70,7 @@ REGIME_SPEC = {
     "scatter60":  {"kind": "scatter", "frac": 0.60, "ht": True},
     "aggregate100": {"kind": "scatter", "frac": 1.00, "ht": True},                   # aggregate-only: no visible results at all
     "coarse60":     {"kind": "scatter", "frac": 0.60, "ht": True, "table": "coarse"}, # privacy axis: table shows points + goal difference only
+    "noisy60":      {"kind": "scatter", "frac": 0.60, "ht": True, "table": "noisy"},  # forensic axis: full table with sparsely corrupted rows
     "coarse_aggregate100": {"kind": "scatter", "frac": 1.00, "ht": True, "table": "coarse"},
     "tail40":     {"kind": "tail",    "frac": 0.40, "ht": True},
     "cluster20":  {"kind": "cluster", "frac": 0.20, "ht": True},
@@ -370,11 +371,26 @@ def main():
                 elif hg == ag: tal[h][2] += 1; tal[a][2] += 1
                 else: tal[h][3] += 1; tal[a][1] += 1
             table_kind = REGIME_SPEC[c["regime"]].get("table", "full")
+            corrupted = {}
+            if table_kind == "noisy":
+                # sparse corruption of the PUBLISHED table only (truth is untouched): ~15 % of rows get one
+                # bounded edit that keeps the row internally plausible (played unchanged, counts >= 0)
+                n_bad = max(1, int(round(0.15 * len(c["teams"]))))
+                for t in rng.sample(c["teams"], n_bad):
+                    row = list(tal[t]); kind = rng.choice(["gf", "ga", "wd", "dl"])
+                    d = rng.choice([-3, -2, -1, 1, 2, 3])
+                    if kind == "gf": row[4] = max(0, row[4] + d)
+                    elif kind == "ga": row[5] = max(0, row[5] + d)
+                    elif kind == "wd":
+                        k = min(abs(d), row[1] if d < 0 else row[2]); row[1] += -k if d < 0 else k; row[2] += k if d < 0 else -k
+                    else:
+                        k = min(abs(d), row[2] if d < 0 else row[3]); row[2] += -k if d < 0 else k; row[3] += k if d < 0 else -k
+                    corrupted[t] = row
             for t in c["teams"]:
                 if table_kind == "coarse":
                     pub_coarse[split].append([c["case_id"], label[t], tal[t][0], 3 * tal[t][1] + tal[t][2], tal[t][4] - tal[t][5]])
                 else:
-                    pub_tallies[split].append([c["case_id"], label[t]] + tal[t])
+                    pub_tallies[split].append([c["case_id"], label[t]] + (corrupted[t] if t in corrupted else tal[t]))
             # fixture rows, shuffled before ID assignment
             fo = list(range(n))
             rng.shuffle(fo)
