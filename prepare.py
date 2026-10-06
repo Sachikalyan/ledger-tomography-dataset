@@ -373,19 +373,30 @@ def main():
             table_kind = REGIME_SPEC[c["regime"]].get("table", "full")
             corrupted = {}
             if table_kind == "noisy":
-                # sparse corruption of the PUBLISHED table only (truth is untouched): ~15 % of rows get one
-                # bounded edit that keeps the row internally plausible (played unchanged, counts >= 0)
-                n_bad = max(1, int(round(0.15 * len(c["teams"]))))
-                for t in rng.sample(c["teams"], n_bad):
-                    row = list(tal[t]); kind = rng.choice(["gf", "ga", "wd", "dl"])
-                    d = rng.choice([-3, -2, -1, 1, 2, 3])
-                    if kind == "gf": row[4] = max(0, row[4] + d)
-                    elif kind == "ga": row[5] = max(0, row[5] + d)
-                    elif kind == "wd":
-                        k = min(abs(d), row[1] if d < 0 else row[2]); row[1] += -k if d < 0 else k; row[2] += k if d < 0 else -k
-                    else:
-                        k = min(abs(d), row[2] if d < 0 else row[3]); row[2] += -k if d < 0 else k; row[3] += k if d < 0 else -k
-                    corrupted[t] = row
+                # Adversarial, mass-preserving corruption of the PUBLISHED table only (truth untouched).
+                # Edits come in pairs of rows so that every global ledger identity still holds
+                # (sum GF = sum GA, sum W = sum L, sum D even, played unchanged): a global audit cannot
+                # detect them; only per-team evidence (visible results, half-time lower bounds, hidden
+                # fixture counts) can.  About 15 % of rows are touched (in pairs); |d| in {1, 2, 3}.
+                rows = {t: list(tal[t]) for t in c["teams"]}
+                n_pairs = max(1, int(round(0.15 * len(c["teams"]) / 2)))
+                pool = c["teams"][:]
+                rng.shuffle(pool)
+                for i in range(n_pairs):
+                    t1, t2 = pool[2 * i], pool[2 * i + 1]
+                    r1, r2 = rows[t1], rows[t2]
+                    kind = rng.choice(["gf", "ga", "wd", "dl"])
+                    d = rng.choice([1, 2, 3])
+                    if kind == "gf":          # goals for move from t2 to t1; totals unchanged
+                        k = min(d, r2[4]); r1[4] += k; r2[4] -= k
+                    elif kind == "ga":
+                        k = min(d, r2[5]); r1[5] += k; r2[5] -= k
+                    elif kind == "wd":        # t1: draws -> wins, t2: wins -> draws (sum W, sum D unchanged)
+                        k = min(d, r1[2], r2[1]); r1[1] += k; r1[2] -= k; r2[1] -= k; r2[2] += k
+                    else:                     # t1: losses -> draws, t2: draws -> losses
+                        k = min(d, r1[3], r2[2]); r1[2] += k; r1[3] -= k; r2[2] -= k; r2[3] += k
+                    if rows[t1] != list(tal[t1]): corrupted[t1] = rows[t1]
+                    if rows[t2] != list(tal[t2]): corrupted[t2] = rows[t2]
             for t in c["teams"]:
                 if table_kind == "coarse":
                     pub_coarse[split].append([c["case_id"], label[t], tal[t][0], 3 * tal[t][1] + tal[t][2], tal[t][4] - tal[t][5]])
